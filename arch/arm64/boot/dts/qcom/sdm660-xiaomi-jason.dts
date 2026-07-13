@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: (GPL-2.0+ OR BSD-3-Clause)
 /*
- * Copyright (c) 2022, Joe Mason <buddyjojo06@outlook.com>
+ * Copyright (c) 2026, Xingyi Sun <Kernel114514@hotmail.com>
+ * Copyright (c) 2026, Alexey Minnekhanov <alexeymin@minlexx.ru>
  */
 
 /dts-v1/;
@@ -10,13 +11,16 @@
 #include "pm660l.dtsi"
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/input/gpio-keys.h>
+#include <dt-bindings/leds/common.h>
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
-#include <dt-bindings/sound/qcom,q6afe.h>
-#include <dt-bindings/sound/qcom,q6asm.h>
+
+/delete-node/ &adsp_region;
+/delete-node/ &cdsp_region;
+/delete-node/ &mba_region;
 
 / {
-	model = "Xiaomi Mi A2";
-	compatible = "xiaomi,jasmine", "qcom,sdm660";
+	model = "Xiaomi Mi Note 3";
+	compatible = "xiaomi,jason", "qcom,sdm660";
 	chassis-type = "handset";
 
 	aliases {
@@ -30,21 +34,42 @@
 		ranges;
 
 		stdout-path = "serial0:115200n8";
+	};
 
-		framebuffer0: framebuffer@9d400000 {
-			compatible = "simple-framebuffer";
-			reg = <0 0x9d400000 0 (1080 * 2160 * 4)>;
-			width = <1080>;
-			height = <2160>;
-			stride = <(1080 * 4)>;
-			format = "a8r8g8b8";
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		adsp_region: adsp@92a00000 {
+			reg = <0x0 0x92a00000 0x0 0x2200000>;
+			no-map;
+		};
+
+		mba_region: mba@94c00000 {
+			reg = <0x0 0x94c00000 0x0 0x200000>;
+			no-map;
+		};
+
+		cdsp_region: cdsp@94e00000 {
+			reg = <0x00 0x94e00000 0x00 0x600000>;
+			no-map;
+		};
+
+		ramoops@b0000000 {
+			compatible = "ramoops";
+			reg = <0x0 0xb0000000 0x0 0x400000>;
+			console-size = <0x200000>;
+			record-size = <0x0>;
+			ftrace-size = <0x0>;
+			pmsg-size = <0x200000>;
 		};
 	};
 
 	battery: battery {
 		compatible = "simple-battery";
 
-		charge-full-design-microamp-hours = <3000000>;
+		charge-full-design-microamp-hours = <3500000>;
 		voltage-min-design-microvolt = <3400000>;
 		voltage-max-design-microvolt = <4400000>;
 	};
@@ -68,12 +93,23 @@
 		regulator-name = "lcdb";
 		/*
 		 * Actual range for LCDB is 4.0 - 6.0V, but
-		 * stock bootloader sets voltage to 5.4 V
+		 * stock bootloader sets specific voltage 5.5V
 		 */
-		regulator-min-microvolt = <5400000>;
-		regulator-max-microvolt = <5400000>;
+		regulator-min-microvolt = <5500000>;
+		regulator-max-microvolt = <5500000>;
 		regulator-always-on;
 		regulator-boot-on;
+	};
+
+	disp_vddts_vreg: disp-vddts-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "disp_vddts_vreg";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		startup-delay-us = <4000>;
+		enable-active-high;
+		regulator-boot-on;
+		gpio = <&tlmm 73 GPIO_ACTIVE_HIGH>;
 	};
 
 	gpio-keys {
@@ -90,32 +126,6 @@
 		};
 	};
 
-	irled {
-		compatible = "gpio-ir-tx";
-		gpios = <&tlmm 24 GPIO_ACTIVE_HIGH>;
-		pinctrl-0 = <&ir_led_default>;
-		pinctrl-names = "default";
-	};
-
-	reserved-memory {
-		#address-cells = <2>;
-		#size-cells = <2>;
-		ranges;
-
-		ramoops@a0000000 {
-			compatible = "ramoops";
-			reg = <0x0 0xa0000000 0x0 0x400000>;
-			console-size = <0x20000>;
-			record-size = <0x20000>;
-			ftrace-size = <0x0>;
-			pmsg-size = <0x20000>;
-		};
-
-		framebuffer_mem: memory@9d400000 {
-			reg = <0x0 0x9d400000 0x0 0x23ff000>;
-			no-map;
-		};
-	};
 
 	/*
 	 * Until we hook up type-c detection, we
@@ -135,6 +145,10 @@
 	firmware-name = "a512_zap.mbn";
 };
 
+&adsp_pil {
+	firmware-name = "adsp_c8.mdt";
+};
+
 &blsp1_uart2 {
 	status = "okay";
 };
@@ -144,56 +158,53 @@
 
 	bluetooth {
 		compatible = "qcom,wcn3990-bt";
-		vddxo-supply = <&vreg_l9a_1p8>; // downstream: vdd-core-supply
-		vddrf-supply = <&vreg_l6a_1p3>; // vdd-pa-supply
-		vddch0-supply = <&vreg_l19a_3p3>; // vdd-ldo-supply
-		vddio-supply = <&vreg_l13a_1p8>; // chip-pwd-supply ? // TODO: check
+		vddxo-supply = <&vreg_l9a_1p8>;
+		vddrf-supply = <&vreg_l6a_1p3>;
+		vddch0-supply = <&vreg_l19a_3p3>;
+		vddio-supply = <&vreg_l13a_1p8>;
 		max-speed = <3200000>;
-		/* Path is relative to the qca/ subdir in lib/firmware. */
-		/* firmware-name = "crnv21.bin"; */ // default
 	};
 };
 
-&blsp_i2c1 {
+&blsp_i2c4 {
 	status = "okay";
 
-	touchscreen@1 {
-		compatible = "novatek,nt36672a-ts";
-		reg = <0x1>;
-		iovcc-supply = <&vreg_l11a_1p8>;
-		interrupts-extended = <&tlmm 67 IRQ_TYPE_EDGE_RISING>;
-		panel = <&panel>;
+	/* Synaptics S3330 / S3331 / TD4322 */
+	touchscreen@20 {
+		compatible = "syna,rmi4-i2c";
+		reg = <0x20>;
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+		interrupts-extended = <&tlmm 67 IRQ_TYPE_LEVEL_LOW>;
+
+		pinctrl-0 = <&ts_active>;
+		pinctrl-1 = <&ts_int_sleep &ts_reset_sleep>;
 		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&ts_pins_active>;
-		pinctrl-1 = <&ts_int_sleep &ts_rst_sleep>;
+
+		vio-supply = <&vreg_l11a_1p8>;
+		vdd-supply = <&disp_vddts_vreg>;
+
 		reset-gpios = <&tlmm 66 GPIO_ACTIVE_LOW>;
-		touchscreen-size-x = <1080>;
-		touchscreen-size-y = <2160>;
+		syna,reset-delay-ms = <200>;
+		syna,startup-delay-ms = <600>;
+
+		rmi4-f01@1 {
+			reg = <0x01>;
+			syna,nosleep-mode = <1>;
+		};
+
+		rmi4-f11@11 {
+			reg = <0x11>;
+			syna,sensor-type = <1>;
+		};
+
+		 rmi4-f1a@1a {
+			reg = <0x1a>;
+			/* Keys listed from right to left, rightmost key is KEY_BACK */
+			linux,keycodes = <KEY_BACK KEY_APPSELECT>;
+		};
 	};
-};
-
-&blsp_i2c6 {
-	status = "okay";
-
-	tas2557: codec@4c {
-		compatible = "ti,tas2557";
-		reg = <0x4c>;
-		#sound-dai-cells = <0>;
-
-		reset-gpios = <&tlmm 77 GPIO_ACTIVE_LOW>;
-		interrupts-extended = <&tlmm 73 IRQ_TYPE_LEVEL_HIGH>;
-
-		vbat-supply = <&vph_pwr>;
-		iovdd-supply = <&vreg_l6b_1p8>;
-		avdd-supply = <&vreg_l6b_1p8>;
-		dvdd-supply = <&vreg_l6b_1p8>;
-
-		ti,channel = <0>;
-	};
-};
-
-&lpass_codec {
-	status = "okay";
 };
 
 &mdss {
@@ -201,28 +212,27 @@
 };
 
 &mdss_dsi0 {
-	status = "okay";
-
 	#address-cells = <1>;
 	#size-cells = <0>;
 
 	vdd-supply = <&vreg_l1b_0p925>;
 	vdda-supply = <&vreg_l1a_1p225>;
 
-	panel: panel@0 {
-		compatible = "tianma,tl060fvxs16-00", "novatek,nt36672a";
+	status = "okay";
+
+	panel@0 {
+		compatible = "jdi,fhd-r63452";
 		reg = <0>;
-
 		reset-gpios = <&tlmm 53 GPIO_ACTIVE_LOW>;
-
-		vddio-supply = <&vreg_l11a_1p8>;
-		vddneg-supply = <&lcdb_fixed>;
-		vddpos-supply = <&lcdb_fixed>;
-
 		backlight = <&pm660l_wled>;
 
-		pinctrl-names = "default";
-		pinctrl-0 = <&panel_reset_n &mdp_vsync_n>;
+		power-supply = <&vreg_l11a_1p8>; /* vddio */
+		/*
+		 * Driver/bindings do not support extra supplies.
+		 * when it does, add these:
+		 * vddpos-supply = <&lcdb_fixed>;
+		 * vddneg-supply = <&lcdb_fixed>;
+		 */
 
 		port {
 			panel_in: endpoint {
@@ -233,8 +243,8 @@
 };
 
 &mdss_dsi0_out {
-	data-lanes = <0 1 2 3>;
 	remote-endpoint = <&panel_in>;
+	data-lanes = <0 1 2 3>;
 };
 
 &mdss_dsi0_phy {
@@ -268,17 +278,6 @@
 	status = "okay";
 };
 
-&pm660l_codec {
-	vdd-cdc-io-supply = <&vreg_s4a_2p04>;
-	vdd-cdc-tx-rx-cx-supply = <&vreg_s4a_2p04>;
-	vdd-micbias-supply = <&vreg_l7b_3p125>;
-
-	qcom,micbias-lvl = <2600>;
-	qcom,micbias1-ext-cap;
-
-	status = "okay";
-};
-
 &pm660l_gpios {
 	vol_up_default: vol-up-default-state {
 		pins = "gpio7";
@@ -286,6 +285,39 @@
 		bias-pull-up;
 		input-enable;
 		qcom,drive-strength = <PMIC_GPIO_STRENGTH_NO>;
+	};
+};
+
+&pm660l_lpg {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	qcom,power-source = <1>;
+
+	status = "okay";
+
+	/* White notification LED */
+	led@3 {
+		reg = <3>; /* downstream uses pwm@b300, which is channel 3 */
+		color = <LED_COLOR_ID_WHITE>;
+		function = LED_FUNCTION_STATUS;
+	};
+
+	/* Back button backlight */
+	led@2 {
+		reg = <2>; /* downstream uses pwm@b200, which is channel 2 */
+		color = <LED_COLOR_ID_WHITE>;
+		function = LED_FUNCTION_KBD_BACKLIGHT;
+		function-enumerator = <0>;
+		default-state = "off";
+	};
+
+	/* AppSelect/Menu button backlight */
+	led@1 {
+		reg = <1>; /* downstream uses pwm@b100, which is channel 1 */
+		color = <LED_COLOR_ID_WHITE>;
+		function = LED_FUNCTION_KBD_BACKLIGHT;
+		function-enumerator = <1>;
+		default-state = "off";
 	};
 };
 
@@ -305,33 +337,6 @@
 	linux,code = <KEY_VOLUMEDOWN>;
 
 	status = "okay";
-};
-
-&q6afedai {
-	dai@16 {
-		reg = <PRIMARY_MI2S_RX>;
-		qcom,sd-lines = <0>;
-	};
-
-	dai@81 {
-		reg = <INT0_MI2S_RX>;
-		qcom,sd-lines = <0 1>;
-	};
-
-	dai@88 {
-		reg = <INT3_MI2S_TX>;
-		qcom,sd-lines = <0 1>;
-	};
-};
-
-&q6asmdai {
-	dai@0 {
-		reg = <0>;
-	};
-
-	dai@1 {
-		reg = <1>;
-	};
 };
 
 &qusb2phy0 {
@@ -418,24 +423,18 @@
 		};
 
 		/*
-		 * Downstream specifies a range of 1721-3600mV,
-		 * but the only assigned consumers are SDHCI2 VMMC
-		 * and Coresight QPDI that both request pinned 2.95V.
-		 * Tighten the range to 1.8-3.328 (closest to 3.3) to
-		 * make the mmc driver happy.
-		 */
+		* Downstream specifies a range of 1721-3600mV,
+		* but the only assigned consumers are SDHCI2 VMMC
+		* and Coresight QPDI that both request pinned 2.95V.
+		* Tighten the range to 1.8-3.328 (closest to 3.3) to
+		* make the mmc driver happy.
+		*/
 		vreg_l5b_2p95: l5 {
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <3328000>;
 			regulator-enable-ramp-delay = <250>;
 			regulator-allow-set-load;
 			regulator-system-load = <800000>;
-		};
-
-		vreg_l6b_1p8: l6 {
-			regulator-min-microvolt = <1800000>;
-			regulator-max-microvolt = <1800000>;
-			regulator-enable-ramp-delay = <250>;
 		};
 
 		vreg_l7b_3p125: l7 {
@@ -468,10 +467,10 @@
 		vdd_l15_l16_l17_l18_l19-supply = <&vreg_bob>;
 
 		/*
-		 * S1A (FTAPC0), S2A (FTAPC1), S3A (HFAPC1) are managed
-		 * by the Core Power Reduction hardened (CPRh) and the
-		 * Operating State Manager (OSM) HW automatically.
-		 */
+		* S1A (FTAPC0), S2A (FTAPC1), S3A (HFAPC1) are managed
+		* by the Core Power Reduction hardened (CPRh) and the
+		* Operating State Manager (OSM) HW automatically.
+		*/
 
 		vreg_s4a_2p04: s4 {
 			regulator-min-microvolt = <1805000>;
@@ -566,7 +565,6 @@
 			regulator-enable-ramp-delay = <250>;
 		};
 
-		/* This gives power to the LPDDR4: never turn it off! */
 		vreg_l13a_1p8: l13 {
 			regulator-min-microvolt = <1780000>;
 			regulator-max-microvolt = <1950000>;
@@ -609,25 +607,8 @@
 	};
 };
 
-&sdc2_state_on {
-	sd-cd-pins {
-		pins = "gpio54";
-		function = "gpio";
-		bias-pull-up;
-		drive-strength = <2>;
-	};
-};
-
-&sdc2_state_off {
-	sd-cd-pins {
-		pins = "gpio54";
-		function = "gpio";
-		bias-disable;
-		drive-strength = <2>;
-	};
-};
-
 &sdhc_1 {
+	status = "okay";
 	supports-cqe;
 
 	mmc-hs200-1_8v;
@@ -636,123 +617,16 @@
 
 	vmmc-supply = <&vreg_l4b_2p95>;
 	vqmmc-supply = <&vreg_l8a_1p8>;
-
-	status = "okay";
-};
-
-&sound {
-	compatible = "qcom,sdm660-internal-sndcard";
-	model = "Xiaomi Mi A2";
-
-	pinctrl-0 = <&cdc_pdm_default>,
-			<&cdc_dmic_default>,
-			<&pri_mi2s_active>;
-	pinctrl-names = "default";
-
-	audio-routing = "RX_BIAS", "Digital MCLK",
-			"INT_LDO_H", "Digital MCLK",
-			"Digital RX_I2S_CLK", "Digital MCLK",
-			"Digital TX_I2S_CLK", "Digital MCLK",
-			"Digital ADC1", "ADC1",
-			"Digital ADC2", "ADC2",
-			"Digital ADC3", "ADC3",
-			"PDM_RX1", "Digital PDM_RX1",
-			"PDM_RX2", "Digital PDM_RX2",
-			"PDM_RX3", "Digital PDM_RX3",
-			"Digital LPASS_PDM_TX", "PDM_TX",
-			"AMIC1", "MIC BIAS External1",
-			"AMIC2", "MIC BIAS External2",
-			"ASI2", "Primary MI2S Playback";
-
-	mm1-dai-link {
-		link-name = "MultiMedia1";
-
-		cpu {
-			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA1>;
-		};
-	};
-
-	mm2-dai-link {
-		link-name = "MultiMedia2";
-
-		cpu {
-			sound-dai = <&q6asmdai MSM_FRONTEND_DAI_MULTIMEDIA2>;
-		};
-	};
-
-	int0-mi2s-dai-link {
-		link-name = "Internal MI2S Playback";
-
-		cpu {
-			sound-dai = <&q6afedai INT0_MI2S_RX>;
-		};
-
-		platform {
-			sound-dai = <&q6routing>;
-		};
-
-		codec {
-			sound-dai = <&pm660l_codec 0>,
-					<&lpass_codec 0>;
-		};
-	};
-
-	pri-mi2s-dai-link {
-		link-name = "Primary MI2S Playback";
-
-		cpu {
-			sound-dai = <&q6afedai PRIMARY_MI2S_RX>;
-		};
-
-		platform {
-			sound-dai = <&q6routing>;
-		};
-
-		codec {
-			sound-dai = <&tas2557>;
-		};
-	};
-
-	int3-mi2s-dai-link {
-		link-name = "Internal MI2S Capture";
-
-		cpu {
-			sound-dai = <&q6afedai INT3_MI2S_TX>;
-		};
-
-		platform {
-			sound-dai = <&q6routing>;
-		};
-
-		codec {
-			sound-dai = <&pm660l_codec 1>,
-					<&lpass_codec 1>;
-		};
-	};
 };
 
 &tlmm {
-	gpio-reserved-ranges = <8 4>;
+	gpio-reserved-ranges = <0 4>, <8 4>;
 
-	ir_led_default: ir-led-default-state {
-		pins = "gpio24";
-		function = "gpio";
-		drive-strength = <2>;
-		bias-disable;
-	};
-
-	ts_pins_active: ts-pins-active-state {
+	ts_active: ts-active-state {
 		pins = "gpio66", "gpio67";
 		function = "gpio";
 		drive-strength = <16>;
 		bias-pull-up;
-	};
-
-	ts_rst_sleep: ts-rst-sleep-state {
-		pins = "gpio66";
-		function = "gpio";
-		drive-strength = <2>;
-		bias-pull-down;
 	};
 
 	ts_int_sleep: ts-int-sleep-state {
@@ -762,64 +636,11 @@
 		bias-disable;
 	};
 
-	panel_reset_n: panel-rst-n-state {
-		pins = "gpio53";
+	ts_reset_sleep: ts-reset-sleep-state {
+		pins = "gpio66";
 		function = "gpio";
-		drive-strength = <8>;
-		bias-disable;
-	};
-
-	mdp_vsync_n: mdp-vsync-n-state {
-		pins = "gpio59";
-		function = "mdp_vsync";
 		drive-strength = <2>;
 		bias-pull-down;
-	};
-
-	pri_mi2s_active: pri-mi2s-active-state {
-		sck-pins {
-			pins = "gpio12";
-			function = "pri_mi2s";
-			drive-strength = <8>;
-			bias-disable;
-		};
-
-		ws-pins {
-			pins = "gpio13";
-			function = "pri_mi2s_ws";
-			drive-strength = <8>;
-			bias-disable;
-		};
-
-		data-pins {
-			pins = "gpio14", "gpio15";
-			function = "pri_mi2s";
-			drive-strength = <8>;
-			bias-disable;
-		};
-	};
-
-	pri_mi2s_sleep: pri-mi2s-sleep-state {
-		sck-pins {
-			pins = "gpio12";
-			function = "pri_mi2s";
-			drive-strength = <2>;
-			bias-pull-down;
-		};
-
-		ws-pins {
-			pins = "gpio13";
-			function = "pri_mi2s_ws";
-			drive-strength = <2>;
-			bias-pull-down;
-		};
-
-		data-pins {
-			pins = "gpio14", "gpio15";
-			function = "pri_mi2s";
-			drive-strength = <2>;
-			bias-pull-down;
-		};
 	};
 };
 
@@ -836,10 +657,6 @@
 
 	dr_mode = "peripheral";
 	extcon = <&extcon_usb>;
-};
-
-&venus {
-	status = "okay";
 };
 
 &wifi {
